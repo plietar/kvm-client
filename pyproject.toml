@@ -1,0 +1,30 @@
+[project]
+name = "kvm-client"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "click",
+  "construct",
+  "pygame",
+]
+
+[project.scripts]
+kvm-client = "kvm_client:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "ruff",
+  "mypy",
+  "construct-typing"
+]
+
+[tool.mypy]
+disallow_any_generics = true
+disallow_untyped_defs = true
+disallow_untyped_calls = true

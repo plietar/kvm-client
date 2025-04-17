@@ -1,0 +1,52 @@
+on:
+  push:
+  pull_request:
+
+jobs:
+  uv-mGbuild:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+
+    - name: Install Python
+      run: uv python install
+
+    - name: Download dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Build package
+      run: uv build
+
+    - name: Run ruff formatter
+      run: uv run ruff format --check --diff
+
+    - name: Run ruff linter
+      run: uv run ruff check --output-format=github
+
+    - name: Run mypy type checker
+      run: uv run mypy -p kvm_client
+
+  nix-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install nix
+      uses: nixbuild/nix-quick-install-action@v30
+
+    - name: Build flake
+      run: nix build --no-link
+
+    - name: Check flake
+      run: nix flake check
