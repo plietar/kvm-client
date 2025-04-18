@@ -33,7 +33,7 @@ async def periodic(f: Callable[..., Awaitable[None | bool]], period: float) -> N
 
 async def redraw(surface: pygame.Surface, output: gui.PyGameOutput) -> None:
     if output.surface is not None:
-        if output.size != surface.get_size():
+        if output.size != surface.get_size() and output.size != (0, 0):
             pygame.display.set_mode(output.size)
         surface.blit(output.surface, (0, 0))
     else:
