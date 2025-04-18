@@ -2,9 +2,10 @@ import http
 import re
 import ssl
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from . import kvm
 
 ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
 ctx.options |= 0x4  # OP_LEGACY_SERVER_CONNECT
@@ -31,14 +32,7 @@ def login(host: str, username: str, password: str) -> bytes:
     return m.group(1)
 
 
-@dataclass
-class ConnectionParameters:
-    hostname: str
-    port: int
-    token: bytes
-
-
-def get_kvm_parameters(host: str, cookie: bytes) -> ConnectionParameters:
+def get_kvm_parameters(host: str, cookie: bytes) -> kvm.ConnectionParameters:
     url = f"https://{host}/Java/jviewer.jnlp"
     request = Request(
         url, headers={"Cookie": f"SessionCookie={cookie.decode('ascii')}"}
@@ -55,6 +49,6 @@ def get_kvm_parameters(host: str, cookie: bytes) -> ConnectionParameters:
     assert args[0] is not None
     assert args[1] is not None
     assert args[2] is not None
-    return ConnectionParameters(
+    return kvm.ConnectionParameters(
         hostname=args[0], port=int(args[1]), token=args[2].encode("ascii")
     )

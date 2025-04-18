@@ -1,5 +1,6 @@
 import asyncio
 import struct
+from dataclasses import dataclass
 from contextlib import AsyncExitStack
 from typing import Protocol, Any, Self
 
@@ -10,6 +11,13 @@ from .proto import IUSB, KVMHeader, KVMPayload
 def encode_keys(keys: list[int]) -> bytes:
     assert len(keys) < 6
     return struct.pack("<BBBBBBBB", 0, 0, *keys, *([0] * (6 - len(keys))))
+
+
+@dataclass
+class ConnectionParameters:
+    hostname: str
+    port: int
+    token: bytes
 
 
 class Connection:
@@ -55,12 +63,10 @@ class KVMOutput(Protocol):
 
 
 class KVM:
-    def __init__(
-        self, hostname: str, port: int, token: bytes, output: KVMOutput
-    ) -> None:
-        self._hostname = hostname
-        self._port = port
-        self._token = token
+    def __init__(self, params: ConnectionParameters, output: KVMOutput) -> None:
+        self._hostname = params.hostname
+        self._port = params.port
+        self._token = params.token
         self._output = output
         self._decoder = asp2000.Decoder()
         self._seqno = 0

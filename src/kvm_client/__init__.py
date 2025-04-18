@@ -4,13 +4,14 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "true"
 
 import asyncio
 import functools
-from typing import Awaitable, Callable, Any, Coroutine
+from pathlib import Path
+from typing import Any, Awaitable, Callable, Coroutine
 
 import click
 import pygame
 
-from . import gui, proxy, web
-from .kvm import KVM
+from . import capture, gui, proxy, web
+from .kvm import KVM, ConnectionParameters
 
 
 def asyncio_main[**P](f: Callable[P, Coroutine[Any, Any, None]]) -> Callable[P, None]:
@@ -47,7 +48,7 @@ def main() -> None:
     pass
 
 
-async def main_loop(params: web.ConnectionParameters) -> None:
+async def main_loop(params: ConnectionParameters) -> None:
     pygame.init()
     surface = pygame.display.set_mode((500, 500))
 
@@ -55,7 +56,7 @@ async def main_loop(params: web.ConnectionParameters) -> None:
 
     output = gui.PyGameOutput()
     try:
-        async with KVM(params.hostname, params.port, params.token, output) as kvm:
+        async with KVM(params, output) as kvm:
             await proxy.race_tasks(
                 kvm.loop(),
                 periodic(functools.partial(gui.handle_events, kvm), 0.001),
@@ -76,6 +77,18 @@ def cli_connect(hostname: str, username: str, password: str) -> None:
     params = web.get_kvm_parameters(hostname, cookie)
 
     asyncio.run(main_loop(params))
+
+
+@main.command("capture")
+@click.argument("hostname")
+@click.option("--username", required=True, default="root")
+@click.option("--password", required=True)
+@click.option("--output", "-o", default="output.jpeg", type=Path)
+def cli_capture(hostname: str, username: str, password: str, output: Path) -> None:
+    cookie = web.login(hostname, username, password)
+    params = web.get_kvm_parameters(hostname, cookie)
+    data = asyncio.run(capture.capture(params))
+    output.write_bytes(data)
 
 
 @main.command("proxy")

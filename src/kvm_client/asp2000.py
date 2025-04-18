@@ -12,19 +12,6 @@ class BitStream:
         self._bits = 0
         self._index = 0
 
-    def peek(self, n: int) -> int:
-        assert n <= 32
-        if n > self._bits:
-            result = self._readbuf >> (32 - n)
-            n -= self._bits
-            (readbuf,) = struct.unpack_from("<L", self._data, self._index)
-        else:
-            result = 0
-            readbuf = self._readbuf
-
-        result |= readbuf >> (32 - n)
-        return result
-
     def read(self, n: int) -> int:
         assert n <= 32
         if n > self._bits:
