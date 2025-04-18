@@ -1,5 +1,5 @@
 import struct
-from typing import Iterable
+from typing import Callable, Iterable
 
 YUV = tuple[int, int, int]
 
@@ -36,7 +36,9 @@ class Decoder:
         tyb = bs.read(8)
         return (txb, tyb)
 
-    def read_palette(self, bs: BitStream, colours: list[YUV], n: int) -> list[YUV]:
+    def read_palette[T](
+        self, bs: BitStream, colors: list[T], n: int, color_map: Callable[[YUV], T]
+    ) -> list[T]:
         palette = []
         for i in range(n):
             newColor = bs.read(1)
@@ -46,13 +48,12 @@ class Decoder:
                 u = bs.read(8)
                 v = bs.read(8)
 
-                # TODO: convert to RGB?
-                colours[index] = (y, u, v)
+                colors[index] = color_map((y, u, v))
 
-            palette.append(colours[index])
+            palette.append(colors[index])
         return palette
 
-    def read_tile(self, bs: BitStream, palette: list[YUV], *, bits: int) -> list[YUV]:
+    def read_tile[T](self, bs: BitStream, palette: list[T], *, bits: int) -> list[T]:
         if bits == 0:
             return [palette[0]] * 64
         else:
@@ -67,14 +68,14 @@ class Decoder:
                 tyb = 0
         return (txb, tyb)
 
-    def decode(
-        self, width: int, height: int, data: bytes
-    ) -> Iterable[tuple[int, int, list[YUV]]]:
-        colours = [
-            (0x00, 0x80, 0x80),
-            (0xFF, 0x80, 0x80),
-            (0x80, 0x80, 0x80),
-            (0xC0, 0x80, 0x80),
+    def decode[T](
+        self, width: int, height: int, data: bytes, color_map: Callable[[YUV], T]
+    ) -> Iterable[tuple[int, int, list[T]]]:
+        colors = [
+            color_map((0x00, 0x80, 0x80)),
+            color_map((0xFF, 0x80, 0x80)),
+            color_map((0x80, 0x80, 0x80)),
+            color_map((0xC0, 0x80, 0x80)),
         ]
         txb = 0
         tyb = 0
@@ -85,30 +86,30 @@ class Decoder:
             if code == 9:
                 break
             elif code == 5:
-                palette = self.read_palette(bs, colours, 1)
+                palette = self.read_palette(bs, colors, 1, color_map)
                 yield txb, tyb, self.read_tile(bs, palette, bits=0)
                 (txb, tyb) = self.next_tile(txb, tyb, width, height)
             elif code == 6:
-                palette = self.read_palette(bs, colours, 2)
+                palette = self.read_palette(bs, colors, 2, color_map)
                 yield txb, tyb, self.read_tile(bs, palette, bits=1)
                 (txb, tyb) = self.next_tile(txb, tyb, width, height)
             elif code == 7:
-                palette = self.read_palette(bs, colours, 4)
+                palette = self.read_palette(bs, colors, 4, color_map)
                 yield txb, tyb, self.read_tile(bs, palette, bits=2)
                 (txb, tyb) = self.next_tile(txb, tyb, width, height)
             elif code == 15:
                 (txb, tyb) = self.read_coordinates(bs)
-                palette = self.read_palette(bs, colours, 4)
+                palette = self.read_palette(bs, colors, 4, color_map)
                 yield txb, tyb, self.read_tile(bs, palette, bits=2)
                 (txb, tyb) = self.next_tile(txb, tyb, width, height)
             elif code == 13:
                 (txb, tyb) = self.read_coordinates(bs)
-                palette = self.read_palette(bs, colours, 1)
+                palette = self.read_palette(bs, colors, 1, color_map)
                 yield txb, tyb, self.read_tile(bs, palette, bits=0)
                 (txb, tyb) = self.next_tile(txb, tyb, width, height)
             elif code == 14:
                 (txb, tyb) = self.read_coordinates(bs)
-                palette = self.read_palette(bs, colours, 2)
+                palette = self.read_palette(bs, colors, 2, color_map)
                 yield txb, tyb, self.read_tile(bs, palette, bits=1)
                 (txb, tyb) = self.next_tile(txb, tyb, width, height)
             else:

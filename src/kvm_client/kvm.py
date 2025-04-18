@@ -1,8 +1,8 @@
 import asyncio
 import struct
-from dataclasses import dataclass
 from contextlib import AsyncExitStack
-from typing import Protocol, Any, Self
+from dataclasses import dataclass
+from typing import Any, Protocol, Self, ContextManager
 
 from . import asp2000
 from .proto import IUSB, KVMHeader, KVMPayload
@@ -57,13 +57,17 @@ class Connection:
         await self.writer.drain()
 
 
-class KVMOutput(Protocol):
-    def update_size(self, width: int, height: int) -> None: ...
-    def update_rect(self, x: int, y: int, data: list[asp2000.YUV]) -> None: ...
+class KVMUpdater[T](Protocol):
+    def update_rect(self, x: int, y: int, data: list[T]) -> None: ...
+
+
+class KVMOutput[T](Protocol):
+    def update(self, width: int, height: int) -> ContextManager[KVMUpdater[T]]: ...
+    def decode_color(self, color: asp2000.YUV) -> T: ...
 
 
 class KVM:
-    def __init__(self, params: ConnectionParameters, output: KVMOutput) -> None:
+    def __init__[T](self, params: ConnectionParameters, output: KVMOutput[T]) -> None:
         self._hostname = params.hostname
         self._port = params.port
         self._token = params.token
@@ -96,16 +100,16 @@ class KVM:
     async def poll(self) -> None:
         header, data = await self._connection.recv()
         if header.op == 0x05:
-            self._output.update_size(
+            with self._output.update(
                 data.payload.data.SourceMode_X, data.payload.data.SourceMode_Y
-            )
-
-            for update in self._decoder.decode(
-                data.payload.data.SourceMode_X,
-                data.payload.data.SourceMode_Y,
-                data.payload.data.data,
-            ):
-                self._output.update_rect(*update)
+            ) as updater:
+                for update in self._decoder.decode(
+                    data.payload.data.SourceMode_X,
+                    data.payload.data.SourceMode_Y,
+                    data.payload.data.data,
+                    self._output.decode_color,
+                ):
+                    updater.update_rect(*update)
 
     async def loop(self) -> None:
         while True:

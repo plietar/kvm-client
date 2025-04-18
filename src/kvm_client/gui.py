@@ -1,4 +1,6 @@
 import itertools
+from contextlib import contextmanager
+from typing import Iterator
 
 import pygame
 
@@ -11,12 +13,22 @@ def parse_yuv(y: int, u: int, v: int) -> pygame.Color:
     r = y + 1.4075 * (v - 128)
     g = y - 0.3455 * (u - 128) - (0.7169 * (v - 128))
     b = y + 1.7790 * (u - 128)
-    if r < 0 or g < 0 or b < 0:
-        print(r, g, b)
-    return pygame.Color(int(max(r, 0)), int(max(g, 0)), int(max(b, 0)))
+    return pygame.Color(int(r), int(g), int(b))
 
 
-class PyGameOutput(KVMOutput):
+class Updater:
+    def __init__(self, array: pygame.PixelArray):
+        self.array = array
+
+    def update_rect(self, x: int, y: int, data: list[pygame.Color]) -> None:
+        # pygame doesn't have anything to assign a rectangle as one operation.
+        # We have to iterate over rows
+        for i in range(8):
+            row = data[8 * i : 8 * (i + 1)]
+            self.array[x * 8 : (x + 1) * 8, y * 8 + i] = row  # type: ignore
+
+
+class PyGameOutput(KVMOutput[pygame.Color]):
     size: tuple[int, int]
     surface: pygame.Surface
 
@@ -24,19 +36,18 @@ class PyGameOutput(KVMOutput):
         self.size = (0, 0)
         self.surface = pygame.Surface(self.size)
 
-    def update_size(self, width: int, height: int) -> None:
+    @contextmanager
+    def update(self, width: int, height: int) -> Iterator[Updater]:
         size = (width, height)
         if self.size != size:
             self.size = size
             self.surface = pygame.Surface(size)
 
-    def update_rect(self, x: int, y: int, data: list[asp2000.YUV]) -> None:
         with pygame.PixelArray(self.surface) as array:
-            # pygame doesn't have anything to assign a rectangle as one operation.
-            # We have to iterate over rows
-            for i in range(8):
-                row = [ parse_yuv(*c) for c in data[8 * i : 8 * (i + 1)] ]
-                array[x * 8 : (x + 1) * 8, y * 8 + i] = row # type: ignore
+            yield Updater(array)
+
+    def decode_color(self, color: asp2000.YUV) -> pygame.Color:
+        return parse_yuv(*color)
 
 
 async def handle_events(kvm: KVM) -> bool | None:
